@@ -1,5 +1,6 @@
 # OrionIntel
-Enterprise AI for document intelligence
+![OrionIntel logo](project-logo.png)
+AI-powered RAG platform for analyzing company files, finance reports, and books.
 
 ## Setup
 Install `uv`, then run `uv sync`.
