@@ -1,5 +1,5 @@
 # OrionIntel
-![OrionIntel logo](project-logo.png)
+<!-- ![OrionIntel logo](assets/project-logo.png) -->
 AI-powered RAG platform for analyzing company files, finance reports, and books.
 
 ## Setup
@@ -20,3 +20,9 @@ Then install dependencies:
 ```bash
 uv sync
 ```
+### Setup the environment variables
+```bash
+$ cp .env.example .env
+```
+Set your environment variables in the `.env` file. Like `OPENAI_API_KEY` value.
+
