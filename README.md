@@ -26,3 +26,12 @@ $ cp .env.example .env
 ```
 Set your environment variables in the `.env` file. Like `OPENAI_API_KEY` value.
 
+## Running the Project
+
+To run the project in development mode, use the following command:
+
+```bash
+uv run fastapi dev main.py
+```
+
+
