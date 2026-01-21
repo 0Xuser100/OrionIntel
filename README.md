@@ -20,6 +20,11 @@ Then install dependencies:
 ```bash
 uv sync
 ```
+
+### Activate the virtual environment (Windows)
+```cmd
+.venv\Scripts\activate
+```
 ### Setup the environment variables
 ```bash
 $ cp .env.example .env
@@ -32,6 +37,12 @@ To run the project in development mode, use the following command:
 
 ```bash
 uv run fastapi dev main.py
+```
+
+To run on a specific port (e.g., 7070):
+
+```bash
+uv run fastapi dev main.py --port 7070
 ```
 ## Run Docker Compose Services
 
