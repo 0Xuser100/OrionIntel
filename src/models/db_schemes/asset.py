@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
-from bson.objectid import ObjectId
 from datetime import datetime
+from typing import Optional
+
+from bson.objectid import ObjectId
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class Asset(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -19,18 +21,13 @@ class Asset(BaseModel):
 
         return [
             {
-                "key": [
-                    ("asset_project_id", 1)
-                ],
+                "key": [("asset_project_id", 1)],
                 "name": "asset_project_id_index_1",
-                "unique": False
+                "unique": False,
             },
             {
-                "key": [
-                    ("asset_project_id", 1),
-                    ("asset_name", 1)
-                ],
+                "key": [("asset_project_id", 1), ("asset_name", 1)],
                 "name": "asset_project_id_name_index_1",
-                "unique": True
+                "unique": True,
             },
         ]

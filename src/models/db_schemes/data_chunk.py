@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
+
 from bson.objectid import ObjectId
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class DataChunk(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -15,11 +17,11 @@ class DataChunk(BaseModel):
     @classmethod
     def get_indexes(cls):
         return [
-         {
-            "key":[
-                ("chunk_order", 1),
-            ],
-            "name": "chunk_project_id_index_1",
-            "unique": False
-         }   
+            {
+                "key": [
+                    ("chunk_order", 1),
+                ],
+                "name": "chunk_project_id_index_1",
+                "unique": False,
+            }
         ]
