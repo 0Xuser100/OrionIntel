@@ -3,6 +3,6 @@ repos:
     hooks:
       - id: python-quality
         name: python-quality
-        entry: bash -c "cd src && uv run autoflake --in-place --recursive --remove-all-unused-imports . && uv run isort . && uv run black ."
+        entry: sh -c "cd src && uv run autoflake --in-place --recursive --remove-all-unused-imports . && uv run isort . && uv run black ."
         language: system
         pass_filenames: false
