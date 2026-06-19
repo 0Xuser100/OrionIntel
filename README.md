@@ -44,17 +44,49 @@ To run on a specific port (e.g., 7070):
 ```bash
 uv run fastapi dev main.py --port 7070
 ```
-## Run Docker Compose Services
+## Run with Docker (fully containerized)
+
+The whole stack — **app + MongoDB + Qdrant** — runs in Docker. The app talks to
+MongoDB and Qdrant by their compose service names over a private network; all
+state is kept in named volumes.
+
+### 1. Configure environment
+
+```bash
+# Mongo credentials for the mongodb container
+$ cd docker
+$ cp .env.example .env        # set MONGO_INITDB_ROOT_USERNAME / PASSWORD
+
+# App settings
+$ cd ../src
+$ cp .env.example .env
+```
+
+In `src/.env`, set the Docker-internal addresses:
+
+```ini
+MONGODB_URL="mongodb://<user>:<pass>@mongodb:27017"   # service name + internal port
+VECTOR_DB_URL="http://qdrant:6333"                    # connect to the qdrant container
+```
+
+The `<user>`/`<pass>` in `MONGODB_URL` must match `docker/.env`.
+
+### 2. Build and run
 
 ```bash
 $ cd docker
-$ cp .env.example .env
+$ docker compose up --build        # add -d to run in the background
 ```
-Update .env with your credentials
-```bash
-$ cd docker
-$  docker compose up -d
-```
+
+App → http://localhost:8000/docs
+
+### Notes
+- `VECTOR_DB_URL` set → Qdrant **server** mode (the container). Leave it empty to
+  fall back to **embedded** Qdrant for local, non-Docker development.
+- Persisted data lives in the `mongodata`, `qdrantdata`, and `app_files` volumes.
+- Studio 3T still connects from your host at `localhost:27007`.
+
+See `docs/docker-changes-and-run.md` for the full design and what changed.
 
 ## Linting and Code Cleaning
 

@@ -9,10 +9,11 @@ from ..VectorDBInterface import VectorDBInterface
 
 class QdrantDBProvider(VectorDBInterface):
 
-    def __init__(self, db_path: str, distance_method: str):
+    def __init__(self, distance_method: str, db_path: str = None, db_url: str = None):
 
         self.client = None
         self.db_path = db_path
+        self.db_url = db_url
         self.distance_method = None
 
         if distance_method == DistanceMethodEnums.COSINE.value:
@@ -23,7 +24,10 @@ class QdrantDBProvider(VectorDBInterface):
         self.logger = logger
 
     def connect(self):
-        self.client = QdrantClient(path=self.db_path)
+        if self.db_url:
+            self.client = QdrantClient(url=self.db_url)
+        else:
+            self.client = QdrantClient(path=self.db_path)
 
     def disconnect(self):
         self.client = None
