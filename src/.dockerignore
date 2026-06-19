@@ -1,0 +1,23 @@
+# Python caches
+__pycache__/
+*.py[codz]
+*.pyc
+
+# secrets & local config (provided at runtime via env_file)
+.env
+.env.example
+
+# local runtime data (uploaded files + embedded vector db) -> use volumes instead
+assets/files/
+assets/database/
+
+# virtual env (rebuilt inside the image)
+.venv/
+
+# vcs / editor / tooling
+.git/
+.gitignore
+.vscode/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
