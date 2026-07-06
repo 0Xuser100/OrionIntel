@@ -1,5 +1,5 @@
 # OrionIntel
-![OrionIntel logo](src\assets\project-logo.png)
+![OrionIntel logo](project-logo.png)
 AI-powered RAG platform for analyzing company files, finance reports, and books.
 
 ## Setup
