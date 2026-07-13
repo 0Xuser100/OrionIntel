@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "PowerShell(git -C D:\\\\mini-rag branch --show-current)",
+      "PowerShell(git -C D:\\\\mini-rag log --oneline -3)",
+      "PowerShell(git -C D:\\\\OrionIntel diff --stat)",
+      "Read(//d/mini-rag/src/routes/**)",
+      "Bash(sed -n '/index\\\\/answer/,$p')",
+      "Read(//d/mini-rag/src/stores/llm/templates/locales/ar/**)",
+      "Read(//d/mini-rag/src/stores/llm/templates/locales/en/**)",
+      "Bash(uv run *)"
     ]
   }
 }
