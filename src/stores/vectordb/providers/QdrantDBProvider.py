@@ -3,6 +3,8 @@ from typing import List
 from loguru import logger
 from qdrant_client import QdrantClient, models
 
+from models.db_schemes import RetrievedDocument
+
 from ..VectorDBEnums import DistanceMethodEnums
 from ..VectorDBInterface import VectorDBInterface
 
@@ -161,4 +163,11 @@ class QdrantDBProvider(VectorDBInterface):
             limit=limit,
             with_payload=True,
         )
-        return response.points
+
+        return [
+            RetrievedDocument(
+                score=point.score,
+                text=point.payload["text"],
+            )
+            for point in response.points
+        ]
