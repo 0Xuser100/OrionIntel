@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+from urllib.parse import quote_plus
 
 from fastapi import FastAPI
 from loguru import logger
-from motor.motor_asyncio import AsyncIOMotorClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 from helpers.config import get_settings
 from routes import base, data, nlp
@@ -16,9 +18,18 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     # Startup
-    logger.info("Application startup: Initializing MongoDB and LLM clients...")
-    app.mongo_conn = AsyncIOMotorClient(settings.MONGODB_URL)
-    app.db_client = app.mongo_conn[settings.MONGODB_DATABASE]
+    logger.info("Application startup: Initializing DB and LLM clients...")
+    postgres_conn = (
+        f"postgresql+asyncpg://{quote_plus(settings.POSTGRES_USERNAME)}:"
+        f"{quote_plus(settings.POSTGRES_PASSWORD)}@"
+        f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/"
+        f"{settings.POSTGRES_MAIN_DATABASE}"
+    )
+
+    app.db_engine = create_async_engine(postgres_conn)
+    app.db_client = sessionmaker(
+        app.db_engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     llm_provider_factory = LLMProviderFactory(settings)
     vectordb_provider_factory = VectorDBProviderFactory(settings)
@@ -50,8 +61,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         # Shutdown
-        logger.info("Application shutdown: Closing MongoDB connection...")
-        app.mongo_conn.close()
+        logger.info("Application shutdown: Closing DB connection...")
+        await app.db_engine.dispose()
         app.vectordb_client.disconnect()
 
 

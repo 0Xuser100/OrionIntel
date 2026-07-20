@@ -9,7 +9,10 @@
       "Bash(sed -n '/index\\\\/answer/,$p')",
       "Read(//d/mini-rag/src/stores/llm/templates/locales/ar/**)",
       "Read(//d/mini-rag/src/stores/llm/templates/locales/en/**)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "PowerShell(docker exec -e PGPASSWORD=mahmoud@2027 pgvector psql -U orionintel_admin -d MiniRag -c \"SELECT version\\(\\);\")",
+      "PowerShell(python -c \"import asyncio, asyncpg; print\\(asyncio.run\\(asyncpg.connect\\('postgresql://orionintel_admin:mahmoud%402027@localhost:5433/MiniRag'\\).fetchval\\('SELECT current_database\\(\\)'\\)\\) if False else 'x'\\)\")",
+      "PowerShell(docker run --rm pgvector/pgvector:0.8.0-pg17 psql \"postgresql://orionintel_admin:mahmoud%402027@host.docker.internal:5433/MiniRag\" -c \"SELECT current_database\\(\\), current_user;\")"
     ]
   }
 }
