@@ -46,30 +46,44 @@ uv run fastapi dev main.py --port 7070
 ```
 ## Run with Docker (fully containerized)
 
-The whole stack — **app + MongoDB + Qdrant** — runs in Docker. The app talks to
-MongoDB and Qdrant by their compose service names over a private network; all
-state is kept in named volumes.
+The whole stack — **app + MongoDB + PostgreSQL/pgvector + Qdrant** — runs in
+Docker. The app talks to the other services by their compose service names over a
+private network; all state is kept in named volumes. The vector store is
+selectable via `VECTOR_DB_BACKEND` (`PGVECTOR` or `QDRANT`).
 
 ### 1. Configure environment
 
 ```bash
-# Mongo credentials for the mongodb container
+# Service credentials for the containers (Mongo + Postgres)
 $ cd docker
-$ cp .env.example .env        # set MONGO_INITDB_ROOT_USERNAME / PASSWORD
+$ cp .env.example .env        # set MONGO_INITDB_ROOT_* and POSTGRES_USER/PASSWORD/DB
 
 # App settings
 $ cd ../src
 $ cp .env.example .env
 ```
 
-In `src/.env`, set the Docker-internal addresses:
+In `src/.env`, set the Docker-internal addresses and pick a vector backend:
 
 ```ini
 MONGODB_URL="mongodb://<user>:<pass>@mongodb:27017"   # service name + internal port
+
+# --- vector store selection ---
+VECTOR_DB_BACKEND="PGVECTOR"                          # or "QDRANT"
+
+# PostgreSQL / pgvector (used when VECTOR_DB_BACKEND=PGVECTOR)
+POSTGRES_USERNAME="<user>"                            # must match docker/.env POSTGRES_USER
+POSTGRES_PASSWORD="<pass>"                            # must match docker/.env POSTGRES_PASSWORD
+POSTGRES_HOST="pgvector"                              # service name (in Docker)
+POSTGRES_PORT=5432                                    # internal port
+POSTGRES_MAIN_DATABASE="<db>"                         # must match docker/.env POSTGRES_DB
+EMBEDDING_MODEL_SIZE=1536                             # must match your embedding model's dimension
+
+# Qdrant (used when VECTOR_DB_BACKEND=QDRANT)
 VECTOR_DB_URL="http://qdrant:6333"                    # connect to the qdrant container
 ```
 
-The `<user>`/`<pass>` in `MONGODB_URL` must match `docker/.env`.
+The credentials in `MONGODB_URL` and the `POSTGRES_*` values must match `docker/.env`.
 
 ### 2. Build and run
 
@@ -78,13 +92,32 @@ $ cd docker
 $ docker compose up --build        # add -d to run in the background
 ```
 
+> Rebuild with `--build` whenever `pyproject.toml`/`uv.lock` change (dependencies
+> are baked into the image at build time).
+
+### 3. Apply database migrations (required for PGVECTOR)
+
+The relational tables (`projects`, `assets`, `chunks`) are created by Alembic and
+are **not** created automatically. With the containers running, apply migrations
+from the **host** (the bundled `alembic.ini` points at `localhost:5433`, the
+host→pgvector port mapping):
+
+```bash
+$ cd src/models/db_schemes/minirag
+$ uv run alembic upgrade head        # then `uv run alembic check` → "No new upgrade operations detected."
+```
+
 App → http://localhost:8000/docs
 
 ### Notes
-- `VECTOR_DB_URL` set → Qdrant **server** mode (the container). Leave it empty to
-  fall back to **embedded** Qdrant for local, non-Docker development.
-- Persisted data lives in the `mongodata`, `qdrantdata`, and `app_files` volumes.
-- Studio 3T still connects from your host at `localhost:27007`.
+- **Backend selection:** `VECTOR_DB_BACKEND=PGVECTOR` stores vectors in Postgres
+  (pgvector); `QDRANT` uses the Qdrant container. For QDRANT, `VECTOR_DB_URL` set →
+  server mode; leave it empty for **embedded** Qdrant (local, non-Docker dev).
+- **Migrations only matter for PGVECTOR** — Qdrant creates its collections on demand.
+- Persisted data lives in the `mongodata`, `pgvector_data`, `qdrantdata`, and
+  `app_files` volumes.
+- Studio 3T still connects from your host at `localhost:27007`; Postgres is exposed
+  on `localhost:5433`.
 
 See `docs/docker-changes-and-run.md` for the full design and what changed.
 
@@ -130,6 +163,20 @@ uv run black .
 ### isort (Import Sorting)
 ```bash
 uv run isort .
+```
+
+### Pre-commit hook
+A `.pre-commit-config.yaml` runs a `python-quality` hook (autoflake → isort →
+black) automatically on every commit. Enable it once per clone:
+
+```bash
+uv run pre-commit install
+```
+
+Run it against all files manually with:
+
+```bash
+uv run pre-commit run --all-files
 ```
 
 ## Docker Cleanup (Windows CMD)
