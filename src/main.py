@@ -12,6 +12,9 @@ from stores.llm.LLMProviderFactory import LLMProviderFactory
 from stores.llm.templates.template_parser import TemplateParser
 from stores.vectordb.VectorDBProviderFactory import VectorDBProviderFactory
 
+# Import metrics setup
+from utils.metrics import setup_metrics
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,6 +72,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Setup Prometheus metrics
+setup_metrics(app)
 
 app.include_router(base.base_router)
 app.include_router(data.data_router)
