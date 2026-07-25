@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s        # how often Prometheus pulls each target
+  evaluation_interval: 15s    # how often alerting/recording rules are evaluated
+
+scrape_configs:
+
+  # Your FastAPI app — metrics come from utils/metrics.py at the obscure path.
+  - job_name: 'fastapi'
+    static_configs:
+      - targets: ['fastapi:8000']
+    metrics_path: '/TrhBVe_m5gg2002_E5VVqS'
+
+  # Host machine metrics (CPU, RAM, disk, network).
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Prometheus scraping itself (its own health).
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Qdrant exposes native Prometheus metrics at /metrics on its REST port.
+  - job_name: 'qdrant'
+    static_configs:
+      - targets: ['qdrant:6333']
+    metrics_path: '/metrics'
+
+  # PostgreSQL metrics via the postgres-exporter sidecar.
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
