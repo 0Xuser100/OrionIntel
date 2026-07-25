@@ -1,0 +1,125 @@
+services:
+  app:
+    build:
+      context: ../../src
+      dockerfile: Dockerfile
+
+    container_name: orionintel_app
+
+    # all app settings (incl. MONGODB_URL and VECTOR_DB_URL) come from src/.env
+    # NOTE: paths are ../../src because this compose now lives in docker/local/
+    env_file:
+      - ../../src/.env
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - app_files:/app/assets/files      # persist uploaded files
+
+    # wait until Mongo and Qdrant actually accept connections, not just start
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+
+    networks:
+      - backend
+
+    restart: always
+
+  mongodb:
+    image: mongo:7-jammy
+
+    container_name: mongodb
+
+    ports:
+      - "27007:27017"                     # host:container (for Studio 3T etc.)
+
+    volumes:
+      - mongodata:/data/db
+
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+
+    # 'ping' is allowed pre-auth, so no credentials are needed here
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - backend
+
+    restart: always
+
+
+  pgvector:
+    image: pgvector/pgvector:0.8.0-pg17
+
+    container_name: pgvector
+
+    ports:
+      - "5433:5432"                       # host:container (5433 avoids clash with local PostgreSQL 18)
+
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+
+    # pg_isready checks that Postgres accepts connections, no password needed
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - backend
+
+    restart: always
+
+
+  qdrant:
+    image: qdrant/qdrant:latest
+
+    container_name: qdrant
+
+    ports:
+      - "6333:6333"                       # REST API (optional, for inspection)
+      - "6334:6334"                       # gRPC API (optional)
+
+    volumes:
+      - qdrantdata:/qdrant/storage
+
+    # the qdrant image has no curl/wget; probe the REST port with bash /dev/tcp
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+    networks:
+      - backend
+
+    restart: always
+
+networks:
+  backend:
+
+volumes:
+  mongodata:
+  app_files:
+  qdrantdata:
+  pgvector_data:
