@@ -7,3 +7,6 @@ orionintel/alembic.ini
 
 # local-dev env files (docker/local/)
 local/.env
+
+# compose-level interpolation file (holds REDIS_PASSWORD); .env.example is committed
+/.env

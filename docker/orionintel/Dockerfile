@@ -43,7 +43,12 @@ COPY docker/orionintel/alembic.ini /app/models/db_schemes/minirag/alembic.ini
 # entrypoint runs migrations, then hands off to the CMD (uvicorn)
 COPY docker/orionintel/entrypoint.sh /entrypoint.sh
 
-RUN mkdir -p /app/assets/files \
+# /app/celerybeat is the mount point for the celery_beat_data volume. It must
+# exist and be owned by appuser BEFORE the volume is attached: Docker copies the
+# directory's ownership into a new named volume, and if the path is missing the
+# volume is created root-owned and beat (running as appuser) can't write its
+# schedule file.
+RUN mkdir -p /app/assets/files /app/celerybeat \
     && chmod +x /entrypoint.sh \
     && chown -R appuser:appuser /app
 

@@ -17,8 +17,156 @@ services:
         condition: service_healthy             # wait until Postgres accepts connections
       qdrant:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy             # .delay() needs a reachable broker
+      redis:
+        condition: service_healthy
     env_file:
       - ./env/.env.app
+
+  # ── Celery worker (consumes the queues the API publishes to) ───────
+  # Same image as `fastapi` — the worker imports the very same code, it just
+  # runs a different command. Building a second image would only risk drift.
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/orionintel/Dockerfile
+    container_name: orionintel_celery_worker
+    # MUST share the uploads volume with fastapi: /upload writes the file in the
+    # API container and the worker reads it back from assets/files/<project_id>.
+    volumes:
+      - fastapi_data:/app/assets
+    networks:
+      - backend
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./env/.env.app
+    environment:
+      # the fastapi container already ran `alembic upgrade head`; a second
+      # concurrent migration would race on the alembic_version table.
+      - RUN_MIGRATIONS=0
+    # -A celery_app  : import src/celery_app.py to find the app + registered tasks
+    # -Q ...         : consume ALL THREE queues. task_routes sends chunking to
+    #                  "file_processing", indexing to "data_indexing", and
+    #                  everything unrouted (maintenance, the chain's 2nd link)
+    #                  to "default". A queue missing from this list is a queue
+    #                  whose tasks pile up silently.
+    # --concurrency  : overridden by CELERY_WORKER_CONCURRENCY from .env.app
+    command: ["celery", "-A", "celery_app", "worker", "--loglevel=INFO", "-Q", "file_processing,data_indexing,default"]
+
+  # ── Celery Beat (periodic scheduler) ───────────────────────────────
+  # Publishes the tasks in `beat_schedule` (src/celery_app.py) on their
+  # interval. It NEVER executes anything — celery_worker does the work.
+  # Run exactly ONE beat container: two would double-publish every tick.
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/orionintel/Dockerfile
+    container_name: orionintel_celery_beat
+    volumes:
+      # beat keeps "when did I last fire each entry" in a shelve file; persisting
+      # it means a restart doesn't immediately re-fire everything
+      - celery_beat_data:/app/celerybeat
+    networks:
+      - backend
+    restart: always
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./env/.env.app
+    environment:
+      - RUN_MIGRATIONS=0
+    # --schedule puts the shelve file inside the mounted volume (its default is
+    # ./celerybeat-schedule in the container's writable layer, which is lost on
+    # every recreate)
+    command: ["celery", "-A", "celery_app", "beat", "--loglevel=INFO", "--schedule=/app/celerybeat/celerybeat-schedule"]
+
+  # ── Flower (Celery web dashboard) ──────────────────────────────────
+  # Read-only monitoring: live workers, queue depth, task history, per-task
+  # arguments and tracebacks. Config in src/flowerconfig.py (port, basic auth).
+  flower:
+    build:
+      context: ..
+      dockerfile: docker/orionintel/Dockerfile
+    container_name: orionintel_flower
+    ports:
+      - "5555:5555"
+    networks:
+      - backend
+    restart: always
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./env/.env.app
+    environment:
+      - RUN_MIGRATIONS=0
+    command: ["celery", "-A", "celery_app", "flower", "--conf=flowerconfig.py"]
+
+  # ── RabbitMQ — the BROKER: holds the task queue ────────────────────
+  rabbitmq:
+    image: rabbitmq:4.1.2-management-alpine
+    container_name: orionintel_rabbitmq
+    ports:
+      - "5672:5672"                            # AMQP — what Celery talks
+      - "15672:15672"                          # management web UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    env_file:
+      - ./env/.env.rabbitmq
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s                        # RabbitMQ boots slowly
+
+  # ── Redis — the RESULT BACKEND: holds task states & return values ──
+  redis:
+    image: redis:8.0.3-alpine
+    container_name: orionintel_redis
+    ports:
+      # host:container — 6380 on the host avoids clashing with any other local
+      # redis (e.g. a Dapr dev container). Inside the compose network the app
+      # still connects to redis:6379, so CELERY_RESULT_BACKEND is unaffected.
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    env_file:
+      - ./env/.env.redis
+    networks:
+      - backend
+    restart: always
+    # ${REDIS_PASSWORD} is interpolated by compose from docker/.env — NOT from
+    # the env_file above, which only reaches the container's environment.
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    healthcheck:
+      # -a is required because the server now demands a password
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   # ── Nginx reverse proxy ────────────────────────────────────────────
   nginx:
@@ -146,3 +294,6 @@ volumes:
   qdrant_data:
   prometheus_data:
   grafana_data:
+  rabbitmq_data:      # broker state: vhost, users, durable queues, undelivered messages
+  redis_data:         # appendonly.aof — task results survive a restart
+  celery_beat_data:   # beat's shelve file: last-fired timestamp per schedule entry
