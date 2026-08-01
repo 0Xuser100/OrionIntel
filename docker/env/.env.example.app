@@ -52,3 +52,21 @@ VECTOR_DB_PGVEC_INDEX_THRESHOLD=100
 # ========================= Template Config =========================
 PRIMARY_LANG="en"
 DEFAULT_LANG="en"
+
+# ========================= Celery Task Queue =========================
+# host = compose service names ("rabbitmq" / "redis") + INTERNAL ports.
+# Credentials MUST match ./env/.env.rabbitmq and ./env/.env.redis + docker/.env.
+CELERY_BROKER_URL="amqp://orionintel_user:orionintel_rabbitmq_2222@rabbitmq:5672/orionintel_vhost"
+CELERY_RESULT_BACKEND="redis://:orionintel_redis_2222@redis:6379/0"
+CELERY_TASK_SERIALIZER="json"
+CELERY_TASK_TIME_LIMIT=600
+CELERY_TASK_ACKS_LATE=true
+CELERY_WORKER_CONCURRENCY=2
+CELERY_RESULT_EXPIRES=3600
+
+# ---- Flower dashboard (http://localhost:5555, user "admin") ----
+CELERY_FLOWER_PASSWORD="orionintel_flower_2222"
+
+# ---- Celery Beat cleanup of celery_task_executions (seconds) ----
+CELERY_BEAT_CLEANUP_INTERVAL=3600
+CELERY_TASK_RECORD_RETENTION=86400

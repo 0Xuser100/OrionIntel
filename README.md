@@ -121,6 +121,53 @@ App → http://localhost:8000/docs
 
 See `docs/docker-changes-and-run.md` for the full design and what changed.
 
+## Background tasks (Celery)
+
+File ingestion and vector indexing no longer run inside the HTTP request.
+`POST /api/v1/data/process/{project_id}` publishes a message to **RabbitMQ**,
+returns `202` with a `task_id`, and a **Celery worker** does the work; task state
+is read back from **Redis** via `GET /api/v1/data/process/status/{task_id}`.
+
+Also included: indexing on the queue, a `chain()` workflow that chunks **then**
+indexes in one call, a Postgres-backed idempotency ledger, a **Celery Beat**
+scheduled cleanup, and the **Flower** dashboard on `:5555`.
+
+```bash
+cd docker/env && cp .env.example.rabbitmq .env.rabbitmq && cp .env.example.redis .env.redis
+cd .. && cp .env.example .env        # compose-level: REDIS_PASSWORD
+docker compose up --build -d
+docker compose logs -f celery_worker
+```
+
+| What | URL |
+|---|---|
+| Flower (Celery dashboard) | http://localhost:5555 — `admin` / `CELERY_FLOWER_PASSWORD` |
+| RabbitMQ management | http://localhost:15672 |
+
+### Async endpoints
+
+| Endpoint | Returns |
+|---|---|
+| `POST /api/v1/data/process/{project_id}` | `202` + `task_id` — chunk the files |
+| `GET  /api/v1/data/process/status/{task_id}` | task state / result / error |
+| `POST /api/v1/data/process-and-push/{project_id}` | `202` + `workflow_task_id` — chunk **then** index |
+| `POST /api/v1/nlp/index/push/{project_id}` | `202` + `task_id` — vector indexing |
+| `GET  /api/v1/nlp/index/push/status/{task_id}` | indexing state, incl. progress |
+
+Full documentation in [`docs/celery/`](./docs/celery/):
+
+| Document | Covers |
+|---|---|
+| [README](./docs/celery/README.md) | What changed, file by file, and what was merged from `mini-rag` `tut-016` + `tut-017` |
+| [01 — Celery basics](./docs/celery/01-celery-basics.md) | Broker vs. result backend, queues, task lifecycle, every config key |
+| [02 — FastAPI integration](./docs/celery/02-fastapi-celery-integration.md) | How API and worker share the code, line by line |
+| [03 — RabbitMQ & Redis in Docker](./docs/celery/03-docker-rabbitmq-redis.md) | Every compose service and env parameter |
+| [04 — Run & verify](./docs/celery/04-run-and-verify.md) | Commands, expected output, troubleshooting |
+| [05 — Idempotency](./docs/celery/05-idempotency-and-task-records.md) | The `celery_task_executions` ledger and duplicate suppression |
+| [06 — Workflows & chains](./docs/celery/06-workflows-and-chains.md) | Indexing on the queue; `chain()` |
+| [07 — Celery Beat](./docs/celery/07-celery-beat-scheduled-cleanup.md) | The scheduled cleanup and its two retention numbers |
+| [08 — Flower](./docs/celery/08-flower-dashboard.md) | The dashboard, its auth, and Flower vs. the RabbitMQ UI |
+
 ## Linting and Code Cleaning
 
 ### Ruff (Linting)

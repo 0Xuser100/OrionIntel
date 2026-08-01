@@ -130,6 +130,11 @@ __pypackages__/
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
+# beat's schedule is a Python shelve, which lands as one of these three
+# depending on the platform's dbm backend
+*.bak
+*.dat
+*.dir
 
 # SageMath parsed files
 *.sage.py

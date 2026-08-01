@@ -92,7 +92,12 @@ class ProcessController(BaseController):
 
                 current_chunk = ""
 
-        if len(current_chunk) >= 0:
+        # `>= 0` was always true, so a trailing EMPTY chunk was appended whenever
+        # the text divided evenly into chunk_size. That empty string then reaches
+        # the embedding API, which rejects the whole batch with
+        # "Invalid 'input[n]': input cannot be an empty string" — making vector
+        # indexing impossible for such a file. Only append real content.
+        if len(current_chunk.strip()) > 0:
             chunks.append(Document(page_content=current_chunk.strip(), metadata={}))
 
         return chunks

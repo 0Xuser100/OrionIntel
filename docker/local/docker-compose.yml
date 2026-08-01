@@ -25,6 +25,158 @@ services:
         condition: service_healthy
       pgvector:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - backend
+
+    restart: always
+
+  # celery worker — same image/build as `app`, different command.
+  celery_worker:
+    build:
+      context: ../../src
+      dockerfile: Dockerfile
+
+    container_name: orionintel_celery_worker
+
+    env_file:
+      - ../../src/.env
+
+    # must share the uploads volume with `app`, or the worker can't read the
+    # file the API just wrote
+    volumes:
+      - app_files:/app/assets/files
+
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: ["celery", "-A", "celery_app", "worker", "--loglevel=INFO", "-Q", "file_processing,data_indexing,default"]
+
+    networks:
+      - backend
+
+    restart: always
+
+  # celery beat — periodic scheduler. Publishes only; the worker executes.
+  celery_beat:
+    build:
+      context: ../../src
+      dockerfile: Dockerfile
+
+    container_name: orionintel_celery_beat
+
+    env_file:
+      - ../../src/.env
+
+    volumes:
+      - celery_beat_data:/app/celerybeat
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+
+    command: ["celery", "-A", "celery_app", "beat", "--loglevel=INFO", "--schedule=/app/celerybeat/celerybeat-schedule"]
+
+    networks:
+      - backend
+
+    restart: always
+
+  # flower — Celery web dashboard on :5555
+  flower:
+    build:
+      context: ../../src
+      dockerfile: Dockerfile
+
+    container_name: orionintel_flower
+
+    env_file:
+      - ../../src/.env
+
+    ports:
+      - "5555:5555"
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: ["celery", "-A", "celery_app", "flower", "--conf=flowerconfig.py"]
+
+    networks:
+      - backend
+
+    restart: always
+
+  # RabbitMQ — the broker (holds the queue)
+  rabbitmq:
+    image: rabbitmq:4.1.2-management-alpine
+
+    container_name: rabbitmq
+
+    ports:
+      - "5672:5672"                       # AMQP
+      - "15672:15672"                     # management UI
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST}
+
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - backend
+
+    restart: always
+
+  # Redis — the result backend (holds task states / return values)
+  redis:
+    image: redis:8.0.3-alpine
+
+    container_name: redis
+
+    ports:
+      - "6380:6379"                       # host:container (6380 avoids a clash with any other local redis)
+
+    volumes:
+      - redis_data:/data
+
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
     networks:
       - backend
@@ -123,3 +275,6 @@ volumes:
   app_files:
   qdrantdata:
   pgvector_data:
+  rabbitmq_data:
+  redis_data:
+  celery_beat_data:

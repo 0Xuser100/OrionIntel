@@ -44,6 +44,25 @@ class Settings(BaseSettings):
     PRIMARY_LANG: str = "en"
     DEFAULT_LANG: str = "en"
 
+    # ---- Celery (task queue) ----
+    # BROKER = where tasks are QUEUED (RabbitMQ). BACKEND = where results are STORED (Redis).
+    CELERY_BROKER_URL: str = None
+    CELERY_RESULT_BACKEND: str = None
+    CELERY_TASK_SERIALIZER: str = "json"
+    CELERY_TASK_TIME_LIMIT: int = 600
+    CELERY_TASK_ACKS_LATE: bool = True
+    CELERY_WORKER_CONCURRENCY: int = 2
+    CELERY_RESULT_EXPIRES: int = 3600
+
+    # Flower dashboard (basic-auth password for user "admin")
+    CELERY_FLOWER_PASSWORD: str = None
+
+    # Celery Beat: how often the cleanup task runs, and how long a
+    # celery_task_executions row is kept. Retention also bounds how long
+    # idempotency protection lasts — see the docs before shortening it.
+    CELERY_BEAT_CLEANUP_INTERVAL: int = 3600
+    CELERY_TASK_RECORD_RETENTION: int = 86400
+
 
 def get_settings():
     return Settings()
